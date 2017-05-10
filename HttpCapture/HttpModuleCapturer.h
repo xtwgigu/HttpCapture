@@ -27,6 +27,7 @@ protected:
 	std::string m_strLogFileKey;
 	FILE * m_pFileHttpStream;
 	FILE * m_pFileResponseStream;
+	FILE * m_pFileRequestStream;
 	bool m_bResponseHeadersLog;
 	char m_szResponseFileName[MAX_PATH];
 

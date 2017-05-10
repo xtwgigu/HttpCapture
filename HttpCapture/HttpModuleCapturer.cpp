@@ -80,6 +80,7 @@ CHttpModuleCapturer::CHttpModuleCapturer()
 	m_bResponseHeadersLog = false;
 	m_pFileHttpStream = NULL;
 	m_pFileResponseStream = NULL;
+	m_pFileRequestStream = NULL;
 	//
 	InitHttpLogFile();
 }
@@ -237,15 +238,18 @@ REQUEST_NOTIFICATION_STATUS CHttpModuleCapturer::OnSendResponse(_In_ IHttpContex
 		HTTP_UNKNOWN_HEADER* pUnknowHeaders = pHttpContext->GetResponse()->GetRawHttpResponse()->Headers.pUnknownHeaders;
 		for (int i = 0; i < pHttpContext->GetRequest()->GetRawHttpRequest()->Headers.UnknownHeaderCount; i++)
 		{
-			std::string strHeader = pUnknowHeaders[i].pName;
-			strHeader += ":";
-			strHeader += pUnknowHeaders[i].pRawValue;
-			strHeader += "\r\n";
-			WriteDataToHttpLogFile((void*)strHeader.c_str(), strHeader.length(), m_pFileHttpStream);
+			if (pUnknowHeaders[i].pRawValue)
+			{
+				std::string strHeader = pUnknowHeaders[i].pName;
+				strHeader += ":";
+				strHeader += pUnknowHeaders[i].pRawValue;
+				strHeader += "\r\n";
+				WriteDataToHttpLogFile((void*)strHeader.c_str(), strHeader.length(), m_pFileHttpStream);
+			}
+			
 		}
 
 	}
-
 
 	//write response fileName
 	if (NULL == m_pFileResponseStream)
@@ -295,29 +299,26 @@ REQUEST_NOTIFICATION_STATUS CHttpModuleCapturer::OnReadEntity(_In_ IHttpContext 
 	DWORD dwBufferLen = 0;
 	pProvider->GetEntity(&pBuffer, &dwDataLen, &dwBufferLen);
 
-	//copy memory and set
-	unsigned char* pNewBuffer = new unsigned char[dwDataLen];
-	memcpy_s(pNewBuffer, dwDataLen, pBuffer, dwDataLen);
-	pProvider->SetEntity(pNewBuffer, dwDataLen, dwDataLen);
-
-
 	wchar_t szLog[200];
-	wsprintfW(szLog, L"Data Len:%u, Buffer Len:%u", dwDataLen, dwBufferLen);
+	wsprintfW(szLog, L"OnReadEntity Data Len:%u, Buffer Len:%u", dwDataLen, dwBufferLen);
 	OutputDebugStringW(szLog);
 
 	//
-	std::string strRequestBodyFile = "c:\\test\\" + m_strLogFileKey + "_HttpRequestBody.txt";
+	if (m_pFileRequestStream == NULL)
+	{
+		std::string strRequestBodyFile = "c:\\test\\" + m_strLogFileKey + "_HttpRequestBody.txt";
 
-	//output tip info;
-	std::string wstrTipInfo = "\r\nRequest Body File:";
-	wstrTipInfo += strRequestBodyFile + "\r\n";
-	WriteDataToHttpLogFile((void*)wstrTipInfo.c_str(), wstrTipInfo.length(), m_pFileHttpStream);
+		//output tip info;
+		std::string wstrTipInfo = "\r\nRequest Body File:";
+		wstrTipInfo += strRequestBodyFile + "\r\n";
+		WriteDataToHttpLogFile((void*)wstrTipInfo.c_str(), wstrTipInfo.length(), m_pFileHttpStream);
 
-	//output request body
-	FILE* fRequest = NULL;
-	fopen_s(&fRequest, strRequestBodyFile.c_str(), "wb");
-	WriteDataToHttpLogFile(pBuffer, dwDataLen, fRequest);
-	fclose(fRequest);
+		fopen_s(&m_pFileRequestStream, strRequestBodyFile.c_str(), "wb");
+	}
+	
+
+	//output request body	
+	WriteDataToHttpLogFile(pBuffer, dwDataLen, m_pFileRequestStream);
 
 
 	return RQ_NOTIFICATION_CONTINUE;
@@ -354,6 +355,13 @@ void CHttpModuleCapturer::UnInitHttpLogFile()
 		fflush(m_pFileResponseStream);
 		fclose(m_pFileResponseStream);
 		m_pFileResponseStream = NULL;
+	}
+
+	if (m_pFileRequestStream!=NULL)
+	{
+		fflush(m_pFileRequestStream);
+		fclose(m_pFileRequestStream);
+		m_pFileRequestStream = NULL;
 	}
 }
 
